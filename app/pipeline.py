@@ -181,12 +181,96 @@ def synthesize(evidence: dict[str, Any], raw: dict[str, Any]) -> str:
         + (f" (total incident lifecycle: {total_duration})" if total_duration else "") + "."
     )
     parts.append(timeline_line)
-    # Impact (from metrics / context)
-    parts.append("Customer impact: Increased API response times; some customers experienced timeouts or intermittent errors when calling the API.")
-    # Root cause (from Slack/context + GitHub)
-    parts.append("Root cause (internal): A configuration change (increased HTTP client timeout) led to database connection pool exhaustion. Rollback of that change restored normal behavior.")
-    # Status
-    parts.append("Current status: Resolved. System has been stable post-rollback.")
+
+    # --- Customer impact: derive from Prometheus metrics + PagerDuty service/severity ---
+    service = evidence.get("service") or "the API"
+    severity = evidence.get("severity") or ""
+
+    peak_p99 = 0.0
+    peak_errors = 0
+    for m in prom.get("metrics", []):
+        if m.get("metric_name") == "http_request_duration_seconds" and (m.get("labels") or {}).get("quantile") == "0.99":
+            peak_p99 = max((v.get("value", 0) for v in m.get("values", [])), default=0)
+        if m.get("metric_name") == "http_requests_total" and (m.get("labels") or {}).get("status") == "500":
+            peak_errors = int(max((v.get("value", 0) for v in m.get("values", [])), default=0))
+
+    impact_details = []
+    if peak_p99 > 1:
+        impact_details.append(f"p99 API response time peaked at {peak_p99}s (normal baseline: <0.5s)")
+    if peak_errors > 0:
+        impact_details.append(f"up to {peak_errors} errors per interval at peak")
+
+    sev_label = f" ({severity})" if severity else ""
+    if impact_details:
+        impact_str = (
+            f"Customer impact: {service}{sev_label} experienced degraded performance — "
+            + "; ".join(impact_details)
+            + ". Customers may have seen slower API response times and intermittent request failures."
+        )
+    else:
+        impact_str = (
+            f"Customer impact: {service}{sev_label} experienced degraded performance. "
+            "Customers may have seen slower API response times or intermittent errors."
+        )
+    parts.append(impact_str)
+
+    # --- Root cause: derive from GitHub deployments + CloudWatch error patterns ---
+    gh = raw.get("github") or {}
+    cw = raw.get("cloudwatch") or {}
+
+    # Find deployments to affected service (split rollback vs feature)
+    related_deploys = []
+    rollback_deploys = []
+    for dep in gh.get("deployments", []):
+        if dep.get("service") == service:
+            title = dep.get("title", "").lower()
+            if "revert" in title or "rollback" in title:
+                rollback_deploys.append(dep)
+            else:
+                related_deploys.append(dep)
+
+    # Identify error patterns from CloudWatch
+    error_signals = set()
+    for log in cw.get("logs", []):
+        if log.get("level") == "ERROR":
+            msg = log.get("message", "").lower()
+            if "timeout" in msg or "connection" in msg:
+                error_signals.add("connection timeouts to a backend dependency")
+            elif "memory" in msg or "oom" in msg:
+                error_signals.add("memory pressure")
+            elif "cpu" in msg or "throttl" in msg:
+                error_signals.add("resource throttling")
+
+    rc_parts = []
+    if related_deploys:
+        dep = related_deploys[-1]
+        rc_parts.append(
+            f"A recent deployment to {dep.get('service')} at {_ts_as_pt(dep.get('timestamp', ''))} "
+            "was identified as a contributing factor"
+        )
+    if error_signals:
+        rc_parts.append("Errors observed: " + "; ".join(error_signals))
+    if rollback_deploys:
+        rb = rollback_deploys[-1]
+        rc_parts.append(f"A rollback was deployed at {_ts_as_pt(rb.get('timestamp', ''))}")
+
+    if rc_parts:
+        root_cause_str = "Root cause (internal): " + ". ".join(rc_parts) + "."
+    else:
+        root_cause_str = "Root cause (internal): Under investigation. No clear cause identified yet from available signals."
+    parts.append(root_cause_str)
+
+    # --- Current status: derive from PagerDuty status field ---
+    pd_data = raw.get("pagerduty") or {}
+    pd_status = pd_data.get("status", "").lower()
+    if pd_status == "resolved":
+        status_str = "Current status: Resolved. System has been stable post-fix."
+    elif pd_status in ("triggered", "acknowledged"):
+        status_str = "Current status: Active. Engineering team is actively investigating and working to resolve."
+    else:
+        status_str = f"Current status: {pd_status.capitalize() or 'Unknown'}."
+    parts.append(status_str)
+
     return "\n\n".join(parts)
 
 
