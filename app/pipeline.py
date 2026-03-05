@@ -176,9 +176,10 @@ def synthesize(evidence: dict[str, Any], raw: dict[str, Any]) -> str:
 
     timeline_line = (
         f"Timeline: Incident started {start_pt or '~2:23 PM PT'}. "
-        f"Service recovered at {fix_time} (customer impact duration: {impact_duration}). "
-        f"Incident marked resolved at {resolved_time} after monitoring"
-        + (f" (total incident lifecycle: {total_duration})" if total_duration else "") + "."
+        f"Service recovered at {fix_time} — this is when customers stopped being impacted (customer-facing duration: {impact_duration}). "
+        f"Incident formally closed at {resolved_time} after post-fix monitoring"
+        + (f" (total internal lifecycle including monitoring: {total_duration})" if total_duration else "") + ". "
+        f"For customer communications, use the customer-facing duration ({impact_duration}) and resolution time ({fix_time})."
     )
     parts.append(timeline_line)
 
@@ -302,7 +303,7 @@ Rules:
 - Do NOT include any internal details (no connection pool, PR numbers, database names, internal systems).
 - Use customer-friendly language (e.g. "slower API response times", "some requests may have timed out").
 - Status must be one of: Investigating, Identified, Monitoring, Resolved.
-- For Resolved, include a brief summary with start time, resolution time, duration, and impact."""
+- For Resolved, include a brief summary with: incident start time, incident resolution time (when service recovered for customers), total duration (time from start to service recovery — NOT including post-fix monitoring period), and customer impact description."""
 
     user = f"""Generate a **{update_type}** status page update using this internal incident summary (do not copy internal jargon to the customer message):
 
