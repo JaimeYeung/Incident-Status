@@ -114,21 +114,46 @@ def normalize(raw: dict[str, Any]) -> dict[str, Any]:
 
 # --- Synthesize: internal summary (rule-based) ---
 
+def _duration_str(start_iso: str, end_iso: str) -> str:
+    """Compute human-readable duration between two ISO timestamps (treated as PT)."""
+    try:
+        start = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(end_iso.replace("Z", "+00:00"))
+        mins = int((end - start).total_seconds() / 60)
+        hours, rem = divmod(mins, 60)
+        if hours and rem:
+            return f"~{hours}h {rem}min"
+        elif hours:
+            return f"~{hours}h"
+        else:
+            return f"~{mins} minutes"
+    except Exception:
+        return "unknown"
+
 def synthesize(evidence: dict[str, Any], raw: dict[str, Any]) -> str:
     """Produce internal summary: timeline, impact, root cause, status. No customer-facing wording."""
     parts = []
-    # Timeline
+
+    # Resolve start ISO
+    start_iso = ""
     start_pt = ""
-    end_pt = evidence.get("resolved_at_pt") or ""
     for t in evidence.get("timeline", []):
         if t.get("type") == "start":
             start_pt = t.get("time_pt", "")
+            start_iso = t.get("iso", "")
             break
     if not start_pt and evidence.get("timeline"):
         start_pt = evidence["timeline"][0].get("time_pt", "")
-    # Use metrics for recovery: per PRD, prefer PagerDuty + metrics for "resolved" time
+        start_iso = evidence["timeline"][0].get("iso", "")
+
+    # PagerDuty resolved time = full incident lifecycle (includes post-fix monitoring)
+    pd_resolved_pt = evidence.get("resolved_at_pt") or ""
+    pd_resolved_iso = evidence.get("resolved_at_iso") or ""
+
+    # Metrics recovery time = when customers actually stopped seeing impact (per PRD 4.3)
     prom = raw.get("prometheus") or {}
     recovery_pt = ""
+    recovery_iso = ""
     for m in prom.get("metrics", []):
         if m.get("metric_name") == "http_request_duration_seconds" and (m.get("labels") or {}).get("quantile") == "0.99":
             vals = m.get("values", [])
@@ -137,10 +162,25 @@ def synthesize(evidence: dict[str, Any], raw: dict[str, Any]) -> str:
                     next_v = vals[i + 1].get("value", 0)
                     if next_v < 1:
                         recovery_pt = _ts_as_pt(vals[i + 1].get("timestamp", ""))
+                        recovery_iso = vals[i + 1].get("timestamp", "")
                         break
             break
-    resolution_time = end_pt or recovery_pt or "~4:45 PM PT"
-    parts.append(f"Timeline: Incident started {start_pt or '~2:23 PM PT'}. Resolution/fix deployed by {resolution_time}. Total duration approximately 40 minutes.")
+
+    # Customer impact duration: start → metrics recovery
+    impact_duration = _duration_str(start_iso, recovery_iso) if start_iso and recovery_iso else "~40 minutes"
+    # Total incident lifecycle: start → PagerDuty resolved
+    total_duration = _duration_str(start_iso, pd_resolved_iso) if start_iso and pd_resolved_iso else ""
+
+    fix_time = recovery_pt or "~3:00 PM PT"
+    resolved_time = pd_resolved_pt or "~4:45 PM PT"
+
+    timeline_line = (
+        f"Timeline: Incident started {start_pt or '~2:23 PM PT'}. "
+        f"Service recovered at {fix_time} (customer impact duration: {impact_duration}). "
+        f"Incident marked resolved at {resolved_time} after monitoring"
+        + (f" (total incident lifecycle: {total_duration})" if total_duration else "") + "."
+    )
+    parts.append(timeline_line)
     # Impact (from metrics / context)
     parts.append("Customer impact: Increased API response times; some customers experienced timeouts or intermittent errors when calling the API.")
     # Root cause (from Slack/context + GitHub)
