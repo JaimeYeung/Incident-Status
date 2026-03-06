@@ -24,13 +24,13 @@ def get_api_key() -> str:
 
 st.set_page_config(
     page_title="Incident Status Draft",
-    page_icon="🚨",
+    page_icon=None,
     layout="centered",
 )
 
 # ─── Header ──────────────────────────────────────────────────────────────────
 
-st.title("🚨 Incident Status Draft")
+st.title("Incident Status Draft")
 st.caption(
     "Crawl MVP · Ingest → Normalize → Synthesize → RAG → Draft → Review"
 )
@@ -86,16 +86,16 @@ if "result" in st.session_state:
     res = st.session_state["result"]
 
     # Internal Summary
-    with st.expander("📋 Internal Summary", expanded=True):
+    with st.expander("Internal Summary", expanded=True):
         st.info(res["internal_summary"])
 
     # Sources Used
-    with st.expander("🔗 Sources Used", expanded=True):
+    with st.expander("Sources Used", expanded=True):
         for src in res["sources_used"]:
             st.markdown(f"- {src}")
 
     # Draft
-    st.subheader("✏️ Draft (edit if needed)")
+    st.subheader("Draft (edit if needed)")
 
     d = res["draft"]
 
