@@ -48,7 +48,7 @@ with col1:
 with col2:
     st.write("")
     st.write("")
-    generate_btn = st.button("⚡ Generate draft", use_container_width=True, type="primary")
+    generate_btn = st.button("Generate draft", use_container_width=True, type="primary")
 
 # ─── Main logic ──────────────────────────────────────────────────────────────
 
