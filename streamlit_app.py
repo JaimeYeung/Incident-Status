@@ -42,7 +42,7 @@ col1, col2 = st.columns([2, 1])
 with col1:
     update_type = st.selectbox(
         "Status",
-        ["Resolved", "Investigating", "Identified", "Monitoring"],
+        ["Investigating", "Identified", "Monitoring", "Resolved"],
         help="Select the current incident status to draft an update for.",
     )
 with col2:
@@ -102,11 +102,11 @@ if "result" in st.session_state:
     title_val = st.text_input("Title", value=d.get("title", ""))
     status_val = st.selectbox(
         "Status",
-        ["Resolved", "Investigating", "Identified", "Monitoring"],
-        index=["Resolved", "Investigating", "Identified", "Monitoring"].index(
-            d.get("status", "Resolved")
+        ["Investigating", "Identified", "Monitoring", "Resolved"],
+        index=["Investigating", "Identified", "Monitoring", "Resolved"].index(
+            d.get("status", "Investigating")
         )
-        if d.get("status") in ["Resolved", "Investigating", "Identified", "Monitoring"]
+        if d.get("status") in ["Investigating", "Identified", "Monitoring", "Resolved"]
         else 0,
     )
     message_val = st.text_area("Message", value=d.get("message", ""), height=200)
