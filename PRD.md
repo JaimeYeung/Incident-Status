@@ -138,26 +138,61 @@ Trigger → Ingest → Normalize → Synthesize → [RAG: Retrieve] → Draft �
 
 ---
 
-## 6. Success Metrics & Evaluation Framework
+## 6. Success Metrics and Evaluation Framework
+
+The success of this system will be measured using both operational efficiency metrics and AI output quality metrics. A structured evaluation rubric and phased approach will be used to continuously assess and improve the quality of generated updates.
 
 ### 6.1 Operational Metrics
 
-- **Time to first draft:** From “Generate” click to draft displayed. Target: &lt; 60 seconds for Crawl.
-- **Time to published update:** From incident acknowledge to first status page update. Target: reduction of 30%+ vs baseline (manual drafting).
-- **Edit rate:** % of drafts published with no or minimal edits. Track to improve prompts and RAG.
+These metrics measure whether the system meaningfully improves incident communication speed.
 
-### 6.2 AI Output Quality
+- **Time to first draft:** Time between an incident commander requesting an update and the system generating a draft. Target: under 60 seconds.
+- **Time to first customer update:** Time from incident acknowledgment to the first status page update. Target: reduce by at least 30% compared with the current manual drafting process.
+- **Edit rate:** Percentage of generated drafts that require only minimal edits before publishing. Lower edit rates indicate higher draft quality. Target: 70%+ "published as-is" in Run.
+- **Commander satisfaction:** Periodic survey (e.g. quarterly) of incident commanders and Technical Support rating draft quality on a 1–5 scale. Tracks whether the tool is genuinely useful under pressure.
 
-- **Format compliance:** Draft includes Title, Status, Message and matches the structure in `status_page_examples.md`. Automated check on schema.
-- **Tone and safety:** No internal-only terms (e.g. “connection pool,” “PR #12345,” “rds-prod-main”). Human review checklist; optionally LLM or keyword-based guardrail.
-- **Accuracy:** Stated timeline and impact align with underlying data (e.g. start/end time, “API slower” vs metrics). Spot-check or sample review.
-- **Source attribution:** Draft is traceable to ingested sources; at minimum a “Sources used” list is shown. No unsupported factual claims; commander can verify and correct.
-- **Consistency:** Same incident + update type produces similar tone and structure across runs; compare multiple generations for the same inputs.
+### 6.2 AI Output Quality Metrics
 
-### 6.3 Evaluation Approach
+These metrics measure the usefulness and reliability of generated drafts.
 
-- **Crawl:** Manual review of 10–20 drafts (different incidents/update types) against a rubric (format, tone, no internal leak, accuracy). Iterate on prompt and RAG.
-- **Walk/Run:** Add automated format checks; periodic human sampling; track edit rate and time-to-publish. Optionally collect “approved as-is” vs “edited” to fine-tune or select models.
+- **Format compliance:** Generated updates consistently follow the required structure (Title, Status, Message) and match the organization's status page format.
+- **Message safety:** Drafts must avoid exposing internal technical details (e.g. infrastructure names, internal tickets, PR numbers, or code references).
+- **Accuracy:** Customer impact descriptions and incident timelines must align with underlying incident data (e.g. start/end time, "API slower" vs metrics).
+- **Customer impact clarity:** Updates clearly describe how customers are affected (e.g. "slower API responses," "intermittent errors") rather than internal technical symptoms.
+- **Source attribution:** Draft is traceable to ingested sources; a "Sources used" list is shown so the commander can verify and correct.
+- **Consistency:** Same incident and status type produces similar tone and structure across runs.
+
+### 6.3 Evaluation Rubric
+
+Every draft should be scored against the following dimensions. Incident commanders or Technical Support (not the development team) perform the review to avoid self-assessment bias.
+
+| Dimension | What to check | Pass criteria |
+|-----------|--------------|---------------|
+| **Format** | Has Title, Status, Message; Status is one of the four valid values | All three fields present; Status is valid |
+| **Tone** | Professional, empathetic, customer-focused; no internal jargon | No internal system names, PR numbers, or technical metrics in Message |
+| **Accuracy** | Timeline (start/end), duration, and impact match the underlying data | Times correct to within ±5 min; impact aligns with metrics |
+| **Completeness** | Message covers what happened, what was affected, and resolution/next steps | All three elements present for Resolved; at least first two for other statuses |
+| **Safety** | No PII, no unconfirmed speculation, no blame | Zero violations |
+| **Clarity** | Understandable by a non-technical customer | No unexplained acronyms or implied technical knowledge required |
+| **Brevity** | Concise; no unnecessary repetition | Resolved under ~150 words; Investigating/Identified under ~80 words |
+
+### 6.4 Evaluation Approach
+
+AI output quality will be evaluated using a combination of automated checks and human review, evolving across phases.
+
+**Crawl — Manual baseline**
+
+Manually review 10–20 drafts (across all four status types) against the rubric above. Reviewers score each dimension pass/fail. Identify common failure modes such as incorrect timelines, missing customer impact, or tone inconsistencies. Iterate on prompts and RAG guidelines until >= 80% pass rate across all dimensions.
+
+**Walk — Automated checks and sampling**
+
+Add automated checks for Format (schema validation) and Safety (keyword blocklist for internal terms). Run human sampling on 5–10% of published drafts. Track edit rate and time-to-publish per incident. Introduce a four-point publishing rating: "published as-is," "minor edits," "major edits," or "rejected." Use this signal to identify patterns in draft failures.
+
+**Run — Continuous improvement**
+
+Use "published as-is" vs "edited/rejected" signals to identify prompt or retrieval weaknesses. A/B test prompt variants or RAG chunk strategies. Optionally introduce an LLM-as-judge to score tone and accuracy at scale, reducing reliance on human sampling for large volumes. Set and monitor SLA targets (e.g. 70%+ "published as-is," time-to-first-draft under 60 seconds).
+
+When a failure pattern is identified at any phase, the remediation path is: fix prompt or RAG, re-evaluate the same batch of drafts, and confirm improvement before re-deploying.
 
 ---
 
