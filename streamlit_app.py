@@ -41,9 +41,9 @@ st.divider()
 col1, col2 = st.columns([2, 1])
 with col1:
     update_type = st.selectbox(
-        "Update type",
+        "Status",
         ["Resolved", "Investigating", "Identified", "Monitoring"],
-        help="Select which stage of the incident lifecycle to draft.",
+        help="Select the current incident status to draft an update for.",
     )
 with col2:
     st.write("")
